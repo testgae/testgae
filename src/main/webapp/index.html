@@ -1,0 +1,318 @@
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<script	src="/bower_components/webcomponentsjs/webcomponents-lite.min.js"></script>
+<script src="/bower_components/raphael/raphael-min.js"></script>
+<link rel="import" href="/resources/proto-element.html">
+<link rel="import" href="/bower_components/paper-checkbox/paper-checkbox.html">
+<link rel="import" href="/bower_components/paper-button/paper-button.html">
+<link rel="import" href="/bower_components/paper-input/paper-input.html">
+<link rel="import" href="/bower_components/paper-styles/paper-styles.html">
+<link rel="import" href="/bower_components/paper-dropdown-menu/paper-dropdown-menu.html">
+<link rel="import" href="/bower_components/paper-menu/paper-menu.html">
+<link rel="import" href="/bower_components/paper-item/paper-item.html">
+<link rel="import" href="/bower_components/paper-dialog/paper-dialog.html">
+<link rel="import" href="/bower_components/paper-drawer-panel/paper-drawer-panel.html">
+<link rel="import" href="/bower_components/iron-form/iron-form.html">
+<link rel="import" href="/bower_components/paper-toolbar/paper-toolbar.html">
+<link rel="import" href="/bower_components/iron-icons/iron-icons.html">
+<link rel="import" href="/bower_components/iron-ajax/iron-ajax.html">
+<link rel="import" href="/bower_components/iron-ajax/iron-request.html">
+<link rel="import" href="/bower_components/paper-scroll-header-panel/paper-scroll-header-panel.html">
+<link rel="import" href="/bower_components/paper-icon-button/paper-icon-button.html">
+
+<style is="custom-style">
+	paper-scroll-header-panel {
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      background-color: var(--paper-grey-200, #eee);;
+    }
+    paper-toolbar {
+      background-color: var(--google-blue-500, #4285f4);
+    }
+    paper-toolbar .title {
+      margin: 0 8px;
+    }
+    paper-scroll-header-panel .content {
+      padding: 8px;
+    }
+    
+</style>
+
+<style>
+#holder {
+	border: 1px solid black;
+}
+#leftPane {
+	border-right: 1px solid black;
+}
+</style>
+
+<script>
+var el;
+
+var GLOBAL_PAPER;
+
+var dragger = function () {
+    this.ox = this.type == "rect" ? this.attr("x") : this.attr("cx");
+    this.oy = this.type == "rect" ? this.attr("y") : this.attr("cy");
+    this.animate({"fill-opacity": .2}, 500);
+};
+
+var move = function (dx, dy) {
+    var att = this.type == "rect" ? {x: this.ox + dx, y: this.oy + dy} : {cx: this.ox + dx, cy: this.oy + dy};
+    this.attr(att);
+    //for (var i = connections.length; i--;) {
+        //r.connection(connections[i]);
+    //}
+    //window.alert(this.data("customindex"));
+    GLOBAL_PAPER.safari();
+};
+
+var up = function () {
+    this.animate({"fill-opacity": 0}, 500);
+};
+
+function refreshProducts() {
+	window.SELECTED_ITEM_ID = null;
+	var xhttp = new XMLHttpRequest();
+  	xhttp.onreadystatechange = function() {
+    	if (xhttp.readyState == 4 && xhttp.status == 200) {
+    		var items = JSON.parse(xhttp.responseText);
+    		var s = '';
+    		var icons = {"Public":"visibility", "Private":"visibility-off"};
+    		for (var i=0; i < items.length; i++) {
+    			s += '<paper-item data-item="' + items[i]["$ID"] + '"><iron-icon icon="' + icons[items[i].group] + '"></iron-icon><paper-item-body>' + items[i].name + '</paper-item-body></paper-item>';
+    		}  
+			document.getElementById('items').innerHTML = s;
+    	}
+  	};
+  xhttp.open("GET", "/api/v10/products", true);
+  xhttp.send();
+};
+
+function deleteProducts() {
+	if (window.SELECTED_ITEM_ID) {
+		var xhttp = new XMLHttpRequest();
+	  	xhttp.onreadystatechange = function() {
+	    	if (xhttp.readyState == 4 && xhttp.status == 200) {
+	    		//window.alert('added succesfully');
+	    		refreshProducts();
+	    	}
+	  	};
+	  	xhttp.open("DELETE", "/api/v10/products/" + window.SELECTED_ITEM_ID, true);
+		xhttp.setRequestHeader("Content-type", "application/json");
+	  	xhttp.send();
+	}
+};
+
+function submitAddForm() {
+	//Polymer.dom(event).localTarget.parentElement.submit();
+	var f = document.getElementById('formAdd');
+	if (f.validate()) {
+		var o = f.serialize();
+		document.getElementById('addproduct').close();
+		var xhttp = new XMLHttpRequest();
+	  	xhttp.onreadystatechange = function() {
+	    	if (xhttp.readyState == 4 && ((xhttp.status == 200) || (xhttp.status == 201))) {
+	    		//window.alert('added succesfully');
+	    		refreshProducts();
+	    	}
+	  	};
+	  	xhttp.open("POST", "/api/v10/products", true);
+		xhttp.setRequestHeader("Content-type", "application/json");
+	  	xhttp.send(JSON.stringify(o));
+	}
+//	if (f.validate()) {
+//	}
+};
+
+function cancelAddForm() {
+	document.getElementById('addproduct').close();
+};
+
+function cancelEditForm() {
+	document.getElementById('editproduct').close();
+};
+
+function addProduct() {
+	document.getElementById('formAdd').reset();
+	document.getElementById('addproduct').open();
+};
+
+function selectMenuItem(menu, item) {
+	for (var i=0; i < menu.items.length; i++) {
+		if (item == menu.items[i].getAttribute("data-value")) {
+			menu.select(i);
+			break;
+		}
+	}
+};
+
+function editProduct() {
+	//document.getElementById('formEdit').reset();
+	if (window.SELECTED_ITEM_ID) {
+		var xhttp = new XMLHttpRequest();
+	  	xhttp.onreadystatechange = function() {
+	    	if (xhttp.readyState == 4 && xhttp.status == 200) {
+	    		//window.alert(xhttp.responseText);
+	    		var obj = JSON.parse(xhttp.responseText);
+	    		//document.getElementById('formEdit').reset();
+	    		document.getElementById("formEditName").value = obj.name;
+	    		//window.alert(obj.group);
+	    		selectMenuItem(document.getElementById("formEditGroup"), obj.group);
+	    		document.getElementById('editproduct').open();
+	    	}
+	  	};
+		xhttp.open("GET", "/api/v10/products/" + window.SELECTED_ITEM_ID, true);
+		xhttp.send();
+	};
+};
+
+function productSelected(event) {
+	window.SELECTED_ITEM_ID = event.target.getAttribute("data-item");
+	if (!window.SELECTED_ITEM_ID) {
+		window.SELECTED_ITEM_ID = event.target.parentElement.getAttribute("data-item");
+	}
+	if (window.GLOBAL_PAPER) {
+		window.GLOBAL_PAPER.remove();
+	};
+	window.GLOBAL_PAPER = Raphael("holder", 640, 480);
+    var shapes = [window.GLOBAL_PAPER.ellipse(190, 100, 30, 20),
+                window.GLOBAL_PAPER.rect(290, 80, 60, 40, 10),
+                window.GLOBAL_PAPER.rect(290, 180, 60, 40, 2),
+                window.GLOBAL_PAPER.ellipse(450, 100, 20, 20)];
+    for (var i = 0, ii = shapes.length; i < ii; i++) {
+        var color = Raphael.getColor();
+        shapes[i].attr({fill: color, stroke: color, "fill-opacity": 0, "stroke-width": 2, cursor: "move"});
+        shapes[i].drag(move, dragger, up);
+        shapes[i].data("customindex", i);
+    };
+};
+
+function submitEditForm() {
+	var f = document.getElementById('formEdit');
+	if (f.validate()) {
+		var o = f.serialize();
+		document.getElementById('editproduct').close();
+		var xhttp = new XMLHttpRequest();
+	  	xhttp.onreadystatechange = function() {
+	    	if (xhttp.readyState == 4 && xhttp.status == 200) {
+	    		//window.alert('added succesfully');
+	    		refreshProducts();
+	    	}
+	  	};
+	  	xhttp.open("PUT", "/api/v10/products/" + window.SELECTED_ITEM_ID, true);
+		xhttp.setRequestHeader("Content-type", "application/json");
+	  	xhttp.send(JSON.stringify(o));
+	}
+};
+
+function saveSchema() {
+	window.alert('saving schema ' + document.getElementById('holder').innerHTML);	
+};
+</script>
+
+</head>
+<body onload="refreshProducts();">
+
+	<h1>Arsene test</h1>
+	<paper-drawer-panel id="paperDrawerPanel">
+		<div drawer id="leftPane">
+			<paper-toolbar>
+				<paper-icon-button icon="add" onclick="addProduct();">+</paper-icon-button>
+				<span class="title">&nbsp;</span>
+				<paper-icon-button icon="create" onclick="editProduct();">E</paper-icon-button>
+				<paper-icon-button icon="refresh" onclick="refreshProducts();"></paper-icon-button>
+				<paper-icon-button icon="delete" onclick="deleteProducts();"></paper-icon-button>
+			</paper-toolbar>
+			<h4>Products</h4>
+			<div class="list short" role="listbox" id="items" onclick="productSelected(event);">
+				<!--  
+				<paper-item>Item</paper-item>
+				<paper-item>Starred</paper-item>
+				<paper-item>Sent mail</paper-item>
+				<paper-item>Drafts</paper-item>
+				-->
+			</div>
+		</div>
+		<div main>
+			<paper-toolbar>
+				<paper-button toggles>Start</paper-button>
+				<paper-button toggles>Finish</paper-button>
+				<paper-button toggles>If</paper-button>
+				<paper-button toggles>Action</paper-button>
+			</paper-toolbar>
+			<div style="padding: 10px;"><div id="holder"></div></div>
+			<div>
+				<paper-button onclick="saveSchema();">Save</paper-icon-button>
+			</div>
+		</div>
+    </paper-drawer-panel>	
+
+	<paper-dialog id="editproduct" modal>
+		<h2>Edit Product</h2>
+		<div>
+	      <div class="horizontal-section">
+	        <form is="iron-form" id="formEdit" method="PUT">
+	          <paper-input name="name" id="formEditName" label="Name" required></paper-input>
+	          <br />
+			<!--  
+	          <input type="checkbox" name="private" value="private" checked>Private<br>
+	          <input type="checkbox" name="food" value="pizza" required> I like pizza<br>
+	          -->
+				
+	          <paper-dropdown-menu label="Group" name="group" required>
+	            <paper-menu id="formEditGroup" class="dropdown-content">
+	              <paper-item data-value="Public">Public</paper-item>
+	              <paper-item data-value="Private">Private</paper-item>
+	            </paper-menu>
+	          </paper-dropdown-menu>
+	          <br /><br /><br />
+	          
+	          <paper-button raised onclick="submitEditForm(event)">Save</paper-button>
+	          <paper-button raised onclick="cancelEditForm(event)">Cancel</paper-button>
+		          
+	        </form>
+	      </div>
+	    </div>
+	</paper-dialog>
+
+	<paper-dialog id="addproduct" modal>
+		<h2>Add New Product</h2>
+		<div>
+      <div class="horizontal-section">
+        <form is="iron-form" id="formAdd" method="POST">
+          <paper-input name="name" label="Name" required></paper-input>
+          <br />
+		<!--  
+          <input type="checkbox" name="private" value="private" checked>Private<br>
+          <input type="checkbox" name="food" value="pizza" required> I like pizza<br>
+          -->
+			
+          <paper-dropdown-menu label="Group" name="group" required>
+            <paper-menu class="dropdown-content">
+              <paper-item>Public</paper-item>
+              <paper-item>Private</paper-item>
+            </paper-menu>
+          </paper-dropdown-menu>
+          <br /><br />
+          <paper-checkbox name="notifications" value="notifications">Send notification ?</paper-checkbox>
+          <br /><br /><br />
+          
+          <paper-button raised onclick="submitAddForm(event)">Add</paper-button>
+          <paper-button raised onclick="cancelAddForm(event)">Cancel</paper-button>
+	          
+        </form>
+      </div>
+    </div>
+	</paper-dialog>
+	
+	<iron-request id="xhr"></iron-request>
+</body>
+</html>
